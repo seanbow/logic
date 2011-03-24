@@ -68,7 +68,7 @@ class KnowledgeBase:
                 c_sets.append(set([clause]))
         return c_sets
 
-    def ask(self, expression):
+    def ask(self, expression, verbose=False):
         '''
         Asks the KB if the expression is true given its current knowledge.
         Returns True if the expression is definitely true, False if it is
@@ -90,22 +90,24 @@ class KnowledgeBase:
         new_clauses = []
         while True:
             ## iterate over all pairs of clauses
-##            print('--New Iteration--')
-##            print('Clauses:', clauses)
+            if verbose: print('--New Iteration--')
+            if verbose: print('Clauses:', clauses)
             for i in range(1, len(clauses)):
                 for j in range(i):
                     c1 = clauses[i]
                     c2 = clauses[j]
-##                    print("Resolving", c1, "and", c2)
+                    if verbose: print("Resolving ", c1, " and ", c2, "...  ", sep='', end='')
                     resolvents = self.resolve(c1, c2)
-##                    print("Resolvents: ", resolvents)
+                    if verbose: print("Resolvents: ", resolvents)
                     ## check for empty clause
                     if set() in resolvents:
+                        if verbose: print("Empty clause present in resolvents. Done.")
                         return True
                     new_clauses.extend(resolvents)
             ## check if any new clauses were added
             ## the next line checks if new_clauses is a subset of clauses
             if all([(c in clauses) for c in new_clauses]):
+                if verbose: print ("No new clauses added this iteration. Done.")
                 return False
             clauses.extend(new_clauses)
         return newKB
