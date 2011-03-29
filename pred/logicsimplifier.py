@@ -12,6 +12,10 @@ class LogicSimplifier:
         new = self.apply_demorgan(new)
         new = self.distribute_or_over_and(new)
         new = self.flatten(new)
+        ## handle all cases uniformly; if the input is a single variable, create
+        ## an expression and[s]
+        if new.op != 'and':
+            new = Expression('and', new)
         return new
 
     def eliminate_biconditionals(self, s):

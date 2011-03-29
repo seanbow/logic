@@ -2,10 +2,10 @@ from logicsimplifier import *
 
 class KnowledgeBase:
     def __init__(self):
-        self.KB = None
+        self.KB = []
 
     def clear(self):
-        self.KB = None
+        self.KB = []
 
     def teach(self, expr):
         '''
@@ -16,24 +16,30 @@ class KnowledgeBase:
             new_expression = expr
         else:
             new_expression = LogicParser().parse(expr)
-        if self.KB:
-            ## make sure we are not introducing a direct contradiction
-            if self.ask(Expression('not', new_expression)) == False:
-                self.KB = Expression('and', self.KB, new_expression)
-            else:
-                raise Exception("Error: teaching this sentence would create a contradiction in the KB")
+        ## The knowledge base is kept as a list of clauses. Convert the input
+        ## expression to CNF and extract its clauses.
+        cnf = LogicSimplifier().to_cnf(new_expression)
+        new_clauses = self.clauses_to_sets(cnf.args)
+        if self.ask(Logic.negate(new_expression)) == False:
+            ## make sure we aren't introducing a contradiction into the KB.
+            ## TODO figure out how to do this more efficiently
+            for clause in new_clauses:
+                if clause not in self.KB:
+                    self.KB.append(clause)
         else:
-            self.KB = new_expression
+            raise Exception("Error: teaching this sentence would create a contradiction in the KB")
+        
 
     def unlearn(self, expr):
-        raise NotImplementedError
         new_expression = None
         if isinstance(expr, Expression):
             new_expression = expr
         else:
             new_expression = LogicParser().parse(expr)
-        clauses = [clause for clause in self.KB.args]
-        print (clauses)
+        clauses = self.clauses_to_sets(LogicSimplifier().to_cnf(new_expression).args)
+        for clause in clauses:
+            if clause in self.KB:
+                self.KB.remove(clause)
 
     def resolve(self, clause1, clause2):
         '''
@@ -83,22 +89,22 @@ class KnowledgeBase:
         else:
             new_expr = LogicParser().parse(expression)
         ## create newKB = KB && ~expression
-        new_expr = Expression('not', new_expr)
-        newKB = Expression('and', self.KB, new_expr)
-        newKB = LogicSimplifier().to_cnf(newKB)
+        new_expr = LogicSimplifier().to_cnf(Logic.negate(new_expr))
+        assert new_expr.op == 'and'
+        new_expr_clauses = self.clauses_to_sets(new_expr.args)
+        newKB = self.KB[:]
+        newKB.extend(new_expr_clauses)
         ## we now have a new knowledge base containing (KB && ~a), where ~a
         ## is the inquiry, in CNF form. Perform the actual resolution step.
-        assert newKB.op == 'and'
-        clauses = self.clauses_to_sets(newKB.args)
         new_clauses = []
         while True:
             ## iterate over all pairs of clauses
             if verbose: print('--New Iteration--')
-            if verbose: print('Clauses:', clauses)
-            for i in range(1, len(clauses)):
+            if verbose: print('Clauses:', newKB)
+            for i in range(1, len(newKB)):
                 for j in range(i):
-                    c1 = clauses[i]
-                    c2 = clauses[j]
+                    c1 = newKB[i]
+                    c2 = newKB[j]
                     if verbose: print("Resolving ", c1, " and ", c2, "...  ", sep='', end='')
                     resolvents = self.resolve(c1, c2)
                     if verbose: print("Resolvents: ", resolvents)
@@ -108,11 +114,11 @@ class KnowledgeBase:
                         return True
                     new_clauses.extend(resolvents)
             ## check if any new clauses were added
-            ## the next line checks if new_clauses is a subset of clauses
-            if all([(c in clauses) for c in new_clauses]):
+            ## the next line checks if new_clauses is a subset of newKB
+            if all([(c in newKB) for c in new_clauses]):
                 if verbose: print ("No new clauses added this iteration. Done.")
                 return False
-            clauses.extend(new_clauses)
+            newKB.extend(new_clauses)
         return newKB
         
         
