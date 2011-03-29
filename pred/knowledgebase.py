@@ -4,6 +4,9 @@ class KnowledgeBase:
     def __init__(self):
         self.KB = None
 
+    def clear(self):
+        self.KB = None
+
     def teach(self, expr):
         '''
         Add a new expression to the knowledge base.
@@ -79,13 +82,13 @@ class KnowledgeBase:
             new_expr = expression
         else:
             new_expr = LogicParser().parse(expression)
+        ## create newKB = KB && ~expression
         new_expr = Expression('not', new_expr)
         newKB = Expression('and', self.KB, new_expr)
         newKB = LogicSimplifier().to_cnf(newKB)
-        assert newKB.op == 'and'
-##        print ('New KB:', newKB)
         ## we now have a new knowledge base containing (KB && ~a), where ~a
         ## is the inquiry, in CNF form. Perform the actual resolution step.
+        assert newKB.op == 'and'
         clauses = self.clauses_to_sets(newKB.args)
         new_clauses = []
         while True:

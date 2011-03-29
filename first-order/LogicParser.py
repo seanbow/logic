@@ -1,5 +1,5 @@
 import re
-from toker import *
+from LogicTokenizer import *
 
 class Logic:
     OPS = ['not', 'and', 'or', 'implies', 'iff']
@@ -100,26 +100,49 @@ class LogicParser:
         if destructive:
             self.tokens = self.tokens[1:]
         return result
-    
-    def parse(self, string):
-        '''
-        Parses a string of propositional logic, returning an Expression that
-        represents the original string.
-        Example:
-        "a -> b" returns Expression('implies', Expression('a'), Expression('b'))
-        "a and b or c or d" returns an Expression that represents, using prefix notation
-            for readability: or[or[and[a, b], c], d]
-        '''
-        self.tokens = LogicTokenizer().tokenize(string)
 
+    def parse_tokens(self, tokens):
+        '''
+        Parses a set of logic tokens, returning an Expression representing their
+        meaning.
+        Example:
+        >>> t = LogicTokenizer().tokenize('a -> (b && c)')
+        >>> parse_tokens(t)
+        implies[a, and[b, c]]
+        '''
+        self.tokens = tokens
         RPN = []
         op_stack = []
 
+        bound = []
+        num_pushed_parens = 0
         token = self.token()
         while token != None:
             #print('RPN = ', RPN, '; op stack = ', op_stack, sep='')
-            if token.type == 'var':
-                RPN.append(token)
+            if token.type == 'exists' or token.type == 'forall':
+                ## keep track of which variable the quantifier binds by storing it in
+                ## the token's name field
+                assert self.token(0).type == 'bindingvar'
+                token.name = self.token(0).name
+                op_stack.append(token)
+            elif token.type == 'pred':
+                op_stack.append(token)
+            elif token.type == 'comma':
+                token = self.token(0)
+                while op_stack[-1].type != 'lparen':
+                    RPN.append(op_stack.pop())
+            elif token.type == 'bindingvar':
+                bound.append(token.name)
+                ## give the binding var's opening paren a 'name' so we can easily
+                ## identify this variable's scope. If there is no opening paren, the
+                ## scope will be until the end of the string.
+                if self.token(0).type == 'lparen':
+                    self.token(0).name = token.name
+            elif token.type == 'var':
+                if token.name in bound:
+                    RPN.append(Token('boundvar', token.name))
+                else:
+                    RPN.append(Token('freevar', token.name))
             elif token.type == 'lparen':
                 op_stack.append(token)
             elif token.type == 'rparen':
@@ -128,7 +151,15 @@ class LogicParser:
                 while op_stack[-1].type != 'lparen':
                     RPN.append(op_stack.pop())
                 assert op_stack[-1].type == 'lparen'
+                ## check if we're ending a bound variable's scope
+                if op_stack[-1].name:
+                    bound.remove(op_stack[-1].name)
                 op_stack.pop() # remove the lparen, discarding it
+                ## check if those parens were for a predicate or quantifier
+                if (op_stack[-1].type == 'pred' or op_stack[-1].type == 'exists'
+                    or op_stack[-1].type == 'forall'):
+                    ## make sure the function call is matched with its arguments
+                    RPN.append(op_stack.pop())
             elif token.type in Logic.OPS:
                 while (op_stack != [] and op_stack[-1].type in Logic.OPS and
                        Logic.Precedence[op_stack[-1].type] >= Logic.Precedence[token.type]):
@@ -147,7 +178,89 @@ class LogicParser:
             if op.type == 'lparen' or op.type == 'rparen':
                 raise Exception("String has mismatched parens")
             RPN.append(op)
-        #print(RPN)
+        print(RPN)
+
+        
+    def parse(self, string):
+        '''
+        Parses a string of first-order logic, returning an Expression that
+        represents the original string.
+        Example:
+        "a -> b" returns Expression('implies', Expression('a'), Expression('b'))
+        "a and b or c or d" returns an Expression that represents, using prefix notation
+            for readability: or[or[and[a, b], c], d]
+        '''
+        self.tokens = LogicTokenizer().tokenize(string)
+        
+
+        RPN = []
+        op_stack = []
+
+        bound = []
+        num_pushed_parens = 0
+        token = self.token()
+        while token != None:
+            #print('RPN = ', RPN, '; op stack = ', op_stack, sep='')
+            if token.type == 'exists' or token.type == 'forall':
+                ## keep track of which variable the quantifier binds by storing it in
+                ## the token's name field
+                assert self.token(0).type == 'bindingvar'
+                token.name = self.token(0).name
+                op_stack.append(token)
+            elif token.type == 'pred':
+                op_stack.append(token)
+            elif token.type == 'comma':
+                token = self.token(0)
+                while op_stack[-1].type != 'lparen':
+                    RPN.append(op_stack.pop())
+            elif token.type == 'bindingvar':
+                bound.append(token.name)
+                ## give the binding var's opening paren a 'name' so we can easily
+                ## identify this variable's scope. If there is no opening paren, the
+                ## scope will be until the end of the string.
+                if self.token(0).type == 'lparen':
+                    self.token(0).name = token.name
+            elif token.type == 'var':
+                if token.name in bound:
+                    RPN.append(Token('boundvar', token.name))
+                else:
+                    RPN.append(Token('freevar', token.name))
+            elif token.type == 'lparen':
+                op_stack.append(token)
+            elif token.type == 'rparen':
+                ## until we find the open paren, pop items off the stack
+                ## into the output string
+                while op_stack[-1].type != 'lparen':
+                    RPN.append(op_stack.pop())
+                assert op_stack[-1].type == 'lparen'
+                ## check if we're ending a bound variable's scope
+                if op_stack[-1].name:
+                    bound.remove(op_stack[-1].name)
+                op_stack.pop() # remove the lparen, discarding it
+                ## check if those parens were for a predicate or quantifier
+                if (op_stack[-1].type == 'pred' or op_stack[-1].type == 'exists'
+                    or op_stack[-1].type == 'forall'):
+                    ## make sure the function call is matched with its arguments
+                    RPN.append(op_stack.pop())
+            elif token.type in Logic.OPS:
+                while (op_stack != [] and op_stack[-1].type in Logic.OPS and
+                       Logic.Precedence[op_stack[-1].type] >= Logic.Precedence[token.type]):
+                    ## pop off all higher precedence operators
+                    ## note: the >= in the above condition rather than > is to
+                    ## ensure proper associative behavior:
+                    ## a -> b -> c should be interpreted as (a -> b) -> c rather
+                    ## than a -> (b -> c).
+                    RPN.append(op_stack.pop())
+                op_stack.append(token)
+            ## read the next token
+            token = self.token()
+        ## no more tokens to read here, push the rest onto our output stack
+        while op_stack != []:
+            op = op_stack.pop()
+            if op.type == 'lparen' or op.type == 'rparen':
+                raise Exception("String has mismatched parens")
+            RPN.append(op)
+        print(RPN)
         ## RPN now contains our original string in reverse polish notation
         ## parse the RPN to create an Expression representing our string.
         # it is easiest to reverse the RPN string so we can use pop()
