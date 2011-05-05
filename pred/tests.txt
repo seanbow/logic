@@ -1,0 +1,42 @@
+KB:
+a -> b
+b -> c
+ASSERT:
+a -> c
+
+KB:
+~(a <-> c) and (b <-> c) => e
+~e
+ASSERT:
+a -> c
+
+KB:
+a -> b
+(c -> d) iff (a -> b)
+e iff ~(c -> d)
+ASSERT:
+~e
+
+KB:
+a -> b
+b -> c
+c -> d
+d -> e
+e -> ~f
+g -> f
+ASSERT:
+a -> ~g
+
+KB:
+a or c or d or f
+b or ~c or d or ~e
+~d
+e
+~a
+~f
+ASSERT:
+b
+
+
+
+

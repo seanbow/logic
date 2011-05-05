@@ -1,0 +1,326 @@
+\documentclass[english]{article}
+\usepackage[T1]{fontenc}
+\usepackage[latin9]{inputenc}
+\usepackage{listings}
+\usepackage{amsmath}
+
+\makeatletter
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LyX specific LaTeX commands.
+%% Because html converters don't know tabularnewline
+\providecommand{\tabularnewline}{\\}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% User specified LaTeX commands.
+\usepackage{listings}
+
+\makeatother
+
+\usepackage{babel}
+
+\begin{document}
+
+\title{CSci 4511 Final Project: A Resolution-Based Propositional Logic Theorem
+Prover}
+
+
+\author{Sean Bowman}
+
+\maketitle
+
+\section{Introduction}
+
+Propositional logic is a simple formal logic system, allowing statements
+such as $p\implies q$ ($p$ implies $q$), $a\lor b\iff c$ ($a$
+or $b$ if and only if $c$), etc. While its simplicity and lack of
+generality largely precludes its sole use in any practical system,
+there are many important logic systems that use its big brother, first-order
+logic. First order logic allows such general expressions as $\forall x.Man(x)\implies Mortal(x)$
+(for all $x$, if $x$ is a man, then $x$ is mortal). First-order
+logic proving systems have had many important applications, such as
+planning \cite{STRIPSPaper}, computer program correctness proving
+\cite{Hoare:1969:ABC:363235.363259}, and most importantly in formal
+verification of logic circuits (after the infamous Pentium floating
+point division bug) \cite{Miller95formalverification}. 
+
+At the core of these systems, though, often lies a simple propositional
+logic based theorem proving system. By {}``propositionalizing''
+the first-order knowledge base to include variables of interest, these
+systems are able to run a simpler propositional logic theorem proving
+system on it. I sought to create one of these propositional logic
+proving systems that is able to prove if any statement of propositional
+logic is true given past information told to the system.
+
+
+\section{Implementation Details}
+
+I chose to implement the propositional knowledge base as a resolution-based
+proving system, as it was familiar to me and has been shown to be
+highly effective in the past. I chose to implement all algorithms
+in Python. The main class of the system is one called KnowledgeBase,
+which one can interact with as follows:
+
+\begin{lstlisting}
+>>> kb = KnowledgeBase()
+>>> kb.tell("a => b")
+>>> kb.tell("b => c")
+>>> kb.ask("a => c")
+True
+\end{lstlisting}
+
+All code has been submitted in a .zip file via the CS Submit utility.
+To use it, simply include {}``from KnowledgeBase import {*}'' at
+the top of a python source file and use it as described above; or,
+run KnowledgeBase.py interactively and use it as described above.
+The syntax for logical expressions is very forgiving; if you think
+it will work, it probably will. Example: {}``a -> b'', {}``a $\ \ \ $
+implies \textasciitilde{}\textasciitilde{}b'', and {}``((a=>b))''
+all work just fine and result in the same thing (\textasciitilde{}
+represents \emph{not}). Associativity and precedence rules are followed
+appropriately, as described in Russell and Norvig, page 244 \cite{RussellNorvigAI}.
+
+Other methods that may be useful are kb.clear() to empty the knowledge
+base's set of knowledge, and kb.unlearn({}``expression'') to remove
+all clauses in an expression from the knowledge base. This may have
+undesired effects, though, e.g. telling a knowledgebase {}``(a and
+b) => c'' and {}``\textasciitilde{}a or c'' and then calling kb.unlearn({}``a
+and b => c'') will have the effect of emptying the database.
+
+The propositional logic system can be broken down into three distinct
+parts: (1) A parser to make sense of human input, (2) A logic simplification
+system to reduce everything to conjunctive normal form, and (3) the
+resolution system itself, able to deduce truths and falsehoods from
+a set of logical clauses. I'll now go over each part of the system
+in detail.
+
+
+\subsection{Parser}
+
+Some logical systems require users to input the logic statements as
+some pre-formatted input that is very native to computer understanding,
+such as prefix notation, where $a\land b\implies c$ would be represented
+as $implies\left[and\left[a,b\right],c\right]$. Indeed, this makes
+the first stage of the system much easier to implement, and I used
+it in my first tries at an implementation. However, I didn't like
+forcing such an artificial syntax on the user, as unfamiliar syntax
+and an unnatural feeling interface has been cited as one of the primary
+impediments to the proliferation of logic verification systems \cite{Hoare:impractical}.
+Instead, I wanted to parse input in as human of a form as possible.
+To do so, I proceed in three steps.
+\begin{enumerate}
+\item Tokenize the input, so it becomes a list of computer recognizable
+chunks, or {}``tokens.'' To perform this task, I use regular expressions,
+which allows for a variety of input syntax and a robustness for variations
+of spacing, etc. For example, the regular expression corresponding
+to {}``if and only if'' is {}``\textbackslash{}<\textbackslash{}-\textbackslash{}>|\textbackslash{}<\textbackslash{}=\textbackslash{}>|{[}iI{]}{[}fF{]}{[}fF{]}'',
+allowing for the user to input <->, <=>, or {}``iff'' in any case
+as part of a logical expression.
+\item Convert the resulting set of tokens to reverse Polish notation, or
+postfix notation, which allows for easier processing. For example,
+the tokens $\left[a,and,b,implies,c\right]$ (representing $a\land b\implies c$)
+would be converted to $\left[a,b,and,c,implies\right]$. To convert
+the infix notation to postfix notation, I use Dijkstra's shunting
+yard algorithm \cite{wiki:ShuntingYard}, which I had to modify to
+accomodate unary operators (logical negation). 
+\item Finally, convert the list of tokens in postfix notation order to an
+actual logical expression. I use a simple stack-based postfix parser
+to convert the postfix notation tokens into an {}``Expression''
+class that unambiguously captures the logical meaning. 
+\end{enumerate}
+The result of this parsing system is a robust and versatile system
+that is both intuitive to use and easily extensible for a wide variety
+of syntactical preferences, correctly parsing sentences from {}``a
+or b'' to {}``a and b or c and e <-> f'' (resulting prefix notation:
+$iff\left[or\left[and\left[a,b\right],and\left[c,e\right]\right],f\right]$).
+
+
+\subsection{Logical Simplifications}
+
+Having logical statements unambigiously represented in memory is great,
+however, a resolution-based system requires a very specific form of
+logical sentences. To apply the principle of resolution to any logical
+statements, it is necessary that they be in conjunctive normal form
+(CNF), i.e. a set of clauses anded together, where a clause is a set
+of literals or'd together. For example, a sentence in CNF is $\left(a\lor b\right)\land\left(c\lor d\right)$,
+and one not in CNF is $\left(a\land b\right)\lor c$. It is possible
+to convert an arbitrary logical statement to CNF in the following
+way \cite{RussellNorvigAI}:
+\begin{enumerate}
+\item Eliminate all biconditionals. Clearly, biconditionals, or iff statements,
+cannot be present in a CNF sentence. The following equivalence allows
+all biconditionals to be removed: $a\iff b$ is equivalent to $\left(a\implies b\right)\land\left(b\implies a\right)$. 
+\item Eliminate all implications. Similar to biconditionals, implications
+are unacceptable in CNF sentences. The following rule allows implications
+to be removed: $a\implies b$ is equivalent to $\lnot a\lor b$. 
+\item Require that all {}``not'' operations be applied only to literals.
+Something such as $\left(\lnot a\right)\lor b$ is acceptable, whereas
+$\lnot\left(a\lor b\right)$ is not. This can be accomplished by repeatedly
+applying DeMorgan's rules, which state that $\lnot\left(a\land b\right)$
+is equivalent to $\lnot a\lor\lnot b$, and that $\lnot\left(a\lor b\right)$
+is equivalent to $\lnot a\land\lnot b$.
+\item We now have a set of (possibly negated) literals linked by \emph{or}
+and \emph{and} operators in some arbitrary fashion. We can finally
+convert this to CNF by distributing \emph{or }over \emph{and} wherever
+possible in the following sense: $a\lor\left(b\land c\right)$ is
+equivalent to $\left(a\lor b\right)\land\left(a\lor c\right)$. 
+\end{enumerate}
+
+\subsection{Resolution System}
+
+The knowledge base itself is really nothing but a list of clauses
+stored in set form; for example, after calling
+\begin{lstlisting}
+kb.tell("a => b")
+\end{lstlisting}
+ , the knowledge base can be contained entirely in the clause $\lnot a\lor b$,
+which is represented as $\left\{ \lnot a,b\right\} $ (the $\lor$
+is implied as all clauses are linked with \emph{or}). Telling the
+knowledge base $b\implies c$ causes the knowledge base to expand
+to two clauses, i.e. $\left[\left\{ \lnot a,b\right\} ,\left\{ \lnot b,c\right\} \right]$.
+Our theorem proving system needs to be able to determine if this set
+of clauses (call it $KB$) entails another logical sentence, say $a\implies c$.
+To do so, we use a resolution based theorem proving algorithm given
+in Russell and Norvig \cite{RussellNorvigAI}. 
+
+The algorithm relies on the basic principle that if a sentence $s$
+is entailed by the knowledge base, the sentence $KB\land\lnot s$
+must be unsatisfiable. The algorithm begins by converting $KB\land\lnot s$
+to CNF form. Then, each clause in $KB\land\lnot s$ is resolved with
+every other clause in $KB\land\lnot s$, and the newly created clauses
+are added to the set of clauses if not already present. If two clauses
+resolve to produce the empty clause, then our original set of clauses
+$KB\land\lnot s$ must be unsatisfiable. If no new clauses are produced
+after a round of resolution, then the $KB$ does not entail $s$.
+For a proof of the algorithm's correctness and completeness, please
+see \cite{RussellNorvigAI}. 
+
+While this algorithm is complete, meaning it will always determine
+correctly whether $s$ is entailed by the knowledge base, it is unfortunately
+very slow. As each clause must be resolved with every other clause
+over the course of the algorithm, the worst-case runtime of the resolution
+algorithm is exponential in the number of clauses, resulting in very
+slow runtimes for even moderately large knowledge bases. It has been
+proven \cite{Cook:TheoremProvingComplexity} that it is impossible
+to perform this task in sub-exponential time no matter which algorithm
+you use; however, at its core, the resolution procedure is a search
+problem with branching factor proportional to the number of clauses
+in our resolving set -- if we are better able to choose clauses to
+resolve, the branching factor would be reduced and, while the runtime
+would still be exponential, it would be greatly reduced.
+
+A significant such optimization comes from the assumption that the
+knowledge base contains no internal contradictions. Thus, resolving
+clauses in $KB$ with other clauses in $KB$ is a fruitless activity,
+as it will never lead to a contradiction. Instead, we can constrain
+the choice of clauses to resolve all clauses in $KB\land\lnot s$
+with only those clauses in $\lnot s$; this greatly reduces branching
+factor from $O\left(\left\Vert KB\land\lnot s\right\Vert ^{2}\right)=O\left(\left\Vert KB\right\Vert ^{2}+2\left\Vert KB\right\Vert \cdot\left\Vert s\right\Vert +\left\Vert s\right\Vert ^{2}\right)$
+to $O\left(\left\Vert KB\land\lnot s\right\Vert \cdot\left\Vert s\right\Vert \right)=O\left(\left\Vert KB\right\Vert \cdot\left\Vert s\right\Vert +\left\Vert s\right\Vert ^{2}\right)$,
+where $\left\Vert S\right\Vert $ is the cardinality of $S$, i.e.
+the number of clauses in $S$. As $\left\Vert s\right\Vert $will
+almost always be much smaller than $\left\Vert KB\right\Vert $, this
+is a significant improvement. 
+
+Note that even if our knowledge base \emph{does} contain internal
+contradictions, the optimized algorithm may still be preferable. If
+our knowledge base consists of, say, {}``a and \textasciitilde{}a'',
+no matter what we ask it will return {}``True.'' It may instead
+make more sense to only return True if the negated asked statement
+introduces any \emph{new} contradictions into the knowledge base,
+which is exactly what the optimized algorithm does. Of course, it
+is best to never introduce contradictions in the first place; my resolution
+system can be told expressions with {}``kb.tell($s$, safe=1)''
+to check that no contradictions are being introduced when telling
+the kb $s$.
+
+
+\section{Results}
+
+All algorithms as described above were implemented in Python. Everything
+was implemented from scratch by me; no third party libraries or other
+tools were used in the final knowledge base. They were tested under
+various conditions; some of the interactive sessions are included
+below. Note: the {}``ask'' function seen below implements the optimized
+resolution algorithm described above; the {}``slow\_ask'' function
+implements the original brute force resolution algorithm.
+
+
+\begin{lstlisting}
+>>> kb = KnowledgeBase()
+>>> kb.tell("a => b")
+>>> kb.tell("b => c")
+>>> kb.ask("a => c")
+True
+
+>>> kb = KnowledgeBase()
+>>> kb.tell("~(a <=> c) and (b <=> c) => e")
+>>> kb.tell("~e")
+>>> kb.ask("a => c")
+True
+>>> kb.slow_ask("a => c")
+True
+
+>>> kb = KnowledgeBase()
+>>> kb.tell("a -> b")
+>>> kb.tell("(c -> d) iff (a -> b)")
+>>> kb.tell("e iff ~(c -> d)")
+>>> kb.ask("~e")
+True
+>>> kb.ask("a")
+False
+\end{lstlisting}
+
+
+I created several such test cases and derived their expected answers
+by hand to both check the correctness of the algorithms and to compare
+the speed of the naive resolution with the improved clause selection
+algorithm. All algorithms found the correct result in all cases, and
+the timing results are seen in table 1. %
+\begin{table}
+\begin{centering}
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline 
+Test \# & 1 & 2 & 3 & 4 & 5\tabularnewline
+\hline
+\hline 
+$t_{BF}$ (sec.) & 0.001 & 4.871 & 4.640 & 0.378 & 2.937\tabularnewline
+\hline 
+$t_{OPT}$ (msec.) & 0.494 & 2.077 & 2.290 & 1.963 & 13.839\tabularnewline
+\hline 
+$t_{BF}/t_{OPT}$ & 2.069 & 2323.9 & 1962.314 & 18.44 & 194.3\tabularnewline
+\hline
+\end{tabular}
+\par\end{centering}
+
+Table 1: Run times of resolution algorithms on different input data
+sets. $t_{BF}$ refers to the runtime of the brute force resolution
+algorithm; $t_{OPT}$ is the runtime of the algorithm optimized as
+described in section 2.3.
+\end{table}
+ It can be seen that for larger problems, the optimized version performs
+significantly better than the unoptimized version.
+
+Even the optimized version of this algorithm, however, is unable to
+handle even moderately large knowledge bases adequately. To test how
+it would perform against a large knowledge base, I combined all of
+the tests together into one large test, telling the knowledge base
+everything up front and then asking it the conjunction of all the
+tests' corresponding assertions. This was a terrible mess, though;
+the very large number of clauses present in the input knowledge base
+and the larger number of clauses present in the asked sentence cause
+the state space to explode. I left the test running for over six hours,
+and it still did not produce an answer.
+
+To accomodate for the larger state space, further optimizations are
+needed. It's probably possible to segment the search into independently
+solvable subproblems, similar to the method of tree decomposition
+used in constraint satisfaction problems \cite{RussellNorvigAI}.
+This is a possible direction of future work. Additionally, there are
+algorithms more efficient than resolution that exploit knowledge between
+clauses at a level deeper than simple resolution, such as the common
+DPLL algorithm that is used in most industrial theorem proving systems
+\cite{DPLLUsage}. 
+
+\bibliographystyle{acm}
+\bibliography{\string"CSci 4511/citations\string"}
+
+\end{document}

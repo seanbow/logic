@@ -2,14 +2,17 @@ import re
 from LogicTokenizer import *
 
 class Logic:
-    OPS = ['not', 'and', 'or', 'implies', 'iff']
     BINARY = ['and', 'or', 'implies', 'iff']
     UNARY = ['not']
+    QUANTIFIERS = ['forall', 'exists']
+    OPS = BINARY + UNARY + QUANTIFIERS
     Precedence = {'not' : 5,
                   'and' : 4,
                   'or' : 3,
                   'implies' : 2,
-                  'iff' : 1}
+                  'iff' : 1,
+                  'forall' : 0,
+                  'exists' : 0}
 
     def negate(s):
         '''
@@ -87,6 +90,39 @@ class Expression:
         if self.op in Logic.UNARY and len(args) > 1:
             raise Exception("Cannot apply a unary operator to more than one argument")
         return Expression(self.op, *args)
+
+class QuantifiedExpression (Expression):
+    def __init__(self, op, var, boundexpr=None):
+        assert isinstance(boundexpr, Expression) or boundexpr == None
+        if op not in Logic.QUANTIFIERS:
+            raise Exception("Error: Bad quantifier")
+        self.op = op
+        self.var = var
+        if boundexpr:
+            self.args = [boundexpr]
+        else:
+            self.args = []
+
+    def __eq__(self, other):
+        if other is self: return True
+        else:
+            return (isinstance(other, QuantifiedExpression) and
+                    other.op == self.op and
+                    other.var == self.var and
+                    other.args == self.args)
+
+    def __call__(self, expr):
+        if len(self.args) != 0:
+            raise Exception("Error: Quantifier alreay contains expression")
+        if not isinstance(expr, Expression):
+            raise Exception("Error: QuantifiedExpression must have an Expression as args")
+        return QuantifiedExpression(self.op, self.var, expr)
+
+    def __repr__(self):
+        return '%s %s.(%s)' % (self.op, self.var, ''.join(map(repr, self.args)))
+
+class Predicate (Expression):
+    pass
 
 class LogicParser:
     def token(self, destructive=1):
@@ -267,10 +303,16 @@ class LogicParser:
         eval_stack = []
         RPN.reverse()
         while RPN != []:
+            print('---New Iteration---')
+            print('Stack: ')
+            [x.print_detailed() for x in eval_stack]
             tok = RPN.pop()
+            print('Next Token: %s' % tok.type)
             if tok.type not in Logic.OPS:
-                ## tok is a variable; convert it to an expression and place it
+                ## tok is a variable or predicate; convert it to an expression and place it
                 ## on the stack
+                if tok.type == 'pred':
+                    eval_stack.append(Predicate(tok.type))
                 eval_stack.append(Expression(tok.name))
             elif tok.type in Logic.UNARY:
                 ## token is a unary operator. convert it to an expression
@@ -278,6 +320,12 @@ class LogicParser:
                 if len(eval_stack) < 1:
                     raise Exception("Error: malformed input string")
                 op = Expression(tok.type)
+                arg = eval_stack.pop()
+                eval_stack.append(op(arg))
+            elif tok.type in Logic.QUANTIFIERS:
+                if len(eval_stack) < 1:
+                    raise Exception("Error: malformed input string")
+                op = QuantifiedExpression(tok.type, tok.name)
                 arg = eval_stack.pop()
                 eval_stack.append(op(arg))
             elif tok.type in Logic.BINARY:
@@ -294,7 +342,11 @@ class LogicParser:
             else:
                 raise Exception("Error: malformed input string")
         ## Hopefully we're done parsing now and the result is left on the stack
+        print('Done! Result: ', end='')
+        [x.print_detailed() for x in eval_stack]
         if len(eval_stack) != 1:
             raise Exception("Error: malformed input string")
         return eval_stack[0]
-       
+
+if __name__=="__main__":
+    P = LogicParser

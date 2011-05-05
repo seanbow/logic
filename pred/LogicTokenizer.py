@@ -6,7 +6,7 @@ class LogicTokenizer:
                         r"(?P<or>[oO][rR]|\|\|)",               # or
                         r"(?P<not>\~|\!|not)",                  # not
                         r"(?P<implies>\-\>|\=\>|[iI][mM][pP][lL][iI][eE][sS])", # implies
-                        r"(?P<iff>\<\-\>|\<\=\>|iff)",          # iff
+                        r"(?P<iff>\<\-\>|\<\=\>|[iI][fF][fF])",          # iff
                         r"(?P<whitespace>\s+)",                 # whitespace
                         r"(?P<lparen>\()",                      # (
                         r"(?P<rparen>\))",                      # )
@@ -22,7 +22,7 @@ class LogicTokenizer:
             #print('searching for token in ' + string[pos:])
             match = self.regex.match(string, pos)
             if match == None:
-                raise SystemExit('bad string in tokenized')
+                raise Exception('Error: malformed input string.')
 
             groups = match.groups()
             if match.lastgroup != 'var' and match.lastgroup != 'whitespace':

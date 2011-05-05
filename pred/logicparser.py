@@ -1,5 +1,5 @@
 import re
-from toker import *
+from LogicTokenizer import *
 
 class Logic:
     OPS = ['not', 'and', 'or', 'implies', 'iff']
@@ -131,12 +131,19 @@ class LogicParser:
                 op_stack.pop() # remove the lparen, discarding it
             elif token.type in Logic.OPS:
                 while (op_stack != [] and op_stack[-1].type in Logic.OPS and
-                       Logic.Precedence[op_stack[-1].type] >= Logic.Precedence[token.type]):
+                       ((Logic.Precedence[op_stack[-1].type] >= Logic.Precedence[token.type] and
+                        op_stack[-1].type != 'not') or
+                       (Logic.Precedence[op_stack[-1].type] > Logic.Precedence[token.type] and
+                        op_stack[-1].type == 'not'))):
                     ## pop off all higher precedence operators
                     ## note: the >= in the above condition rather than > is to
                     ## ensure proper associative behavior:
                     ## a -> b -> c should be interpreted as (a -> b) -> c rather
                     ## than a -> (b -> c).
+                    ## Additionally, the shunting algorithm wasn't made to handle unary operators ('not')
+                    ## and breaks unless they're handled specially. If they're present, they should be
+                    ## considered to have lower precedence than themself so the algorithm doesn't try to
+                    ## negate nothing and cause an exception.
                     RPN.append(op_stack.pop())
                 op_stack.append(token)
             ## read the next token
@@ -153,6 +160,7 @@ class LogicParser:
         # it is easiest to reverse the RPN string so we can use pop()
         eval_stack = []
         RPN.reverse()
+        #print(RPN)
         while RPN != []:
             tok = RPN.pop()
             if tok.type not in Logic.OPS:

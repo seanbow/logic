@@ -34,6 +34,8 @@ class LogicTokenizer:
                 self.tokenized.append(Token(match.lastgroup, match.group(0)))
             elif match.lastgroup == 'bindingvar':
                 self.tokenized.append(Token(match.lastgroup, match.group(0)[:-1]))
+            elif match.lastgroup == 'forall' or match.lastgroup == 'exists':
+                self.tokenized.append(Token(match.lastgroup, match.group(0)))
             elif match.lastgroup != 'whitespace':
                 self.tokenized.append(Token(match.lastgroup))
 

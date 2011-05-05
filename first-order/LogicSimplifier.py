@@ -1,11 +1,7 @@
-from LogicParser import *
+from logicparser import *
 
 
 def FlattenedExpression(op, *args):
-    '''
-    A simple method to create an expression consisting of multiple
-    arguments one level deep.
-    '''
     return LogicSimplifier().flatten(Expression(op, *args))
 
 class LogicSimplifier:
@@ -16,8 +12,7 @@ class LogicSimplifier:
         new = self.apply_demorgan(new)
         new = self.distribute_or_over_and(new)
         new = self.flatten(new)
-        ## handle all cases uniformly - everything should return a set of clauses
-        ## ANDed together. If the input is a single variable, create
+        ## handle all cases uniformly; if the input is a single variable, create
         ## an expression and[s]
         if new.op != 'and':
             new = Expression('and', new)
@@ -89,11 +84,8 @@ class LogicSimplifier:
             inner = s.args[0]
             # check for a double negation
             if inner.op == 'not':
-                # If there are only two nots, we can just remove both. BUT:
-                # there might be more than two. We have to call ourself on
-                # the expression again to be sure.
-                newexp = inner.args[0] # first remove both nots
-                return self.apply_demorgan(newexp)
+                # this is simple, we can just remove both nots
+                newexp = inner.args[0]
             # check for and/or for demorgan
             elif inner.op == 'and':
                 ## apply demorgan
@@ -116,15 +108,13 @@ class LogicSimplifier:
             return newexp
 
     def flatten(self, s):
-        '''
-        This function flattens nestings of the same operator into a
+        '''This function flattens nestings of the same operator into a
         single expression with >2 arguments. For example, and(and(a, b), c) would
         become and(a, b, c).
 
         CAUTION: Most algorithms in this code do NOT work with a flattened
         logic structure; they break if any expression contains more than two
-        arguments. Use this only before distribute_or_over_and, which requires it
-        '''
+        arguments. Use this only before distribute_or_over_and, which requires it'''
         assert isinstance(s, Expression)
         if s.op == 'and':
             args = list(s.args)
@@ -145,15 +135,8 @@ class LogicSimplifier:
         return s
 
     def distribute_or_over_and(self, s):
-        '''
-        This function applies the distributive rule to distribute ORs over AND
-        wherever possible in the input expression.
-        Example usage:
-        
-        >>> e = LogicParser().parse('a or (b and c)')
-        >>> LogicSimplifier().distribute_or_over_and(e)
-        (a or b) and (a or c)
-        '''
+        # search for any expression that looks like (a or (b and c)) and convert
+        # it to (a or b) and (a or c)
         assert isinstance(s, Expression)
         self.flatten(s)
         if s.op == 'or':

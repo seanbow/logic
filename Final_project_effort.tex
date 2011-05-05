@@ -1,0 +1,103 @@
+\documentclass[english]{article}
+\usepackage[T1]{fontenc}
+\usepackage[latin9]{inputenc}
+\usepackage{babel}
+
+\begin{document}
+
+\title{CSci 4511W Final Project {}``Effort Paper''}
+
+
+\author{Sean Bowman}
+
+\maketitle
+As I am the sole member of this project group, I of course did all
+work presented in the real paper. I implemented everything described
+from scratch in Python, using no third party libraries or other peoples'
+code. A description of each file in the system follows:
+\begin{itemize}
+\item LogicTokenizer.py
+
+\begin{itemize}
+\item Tokenizes an input string, converting a set of characters to a more
+computer friendly form. Example: {}``a => b'' becomes {[}Token('var',
+'a'), Token('implies'), Token('var', 'b'){]}
+\end{itemize}
+\item LogicParser.py
+
+\begin{itemize}
+\item Parses an input string with the help of LogicTokenizer, converting
+any input expression into an Expression class representing its meaning.
+\end{itemize}
+\item LogicSimplifier.py
+
+\begin{itemize}
+\item Several methods to simplify a logical statement, culminating in to\_cnf()
+which converts any input Expression into conjunctive normal form.
+\end{itemize}
+\item KnowledgeBase.py
+
+\begin{itemize}
+\item The actual resolution system, taking input from users and, through
+the help of LogicSimplifier and LogicParser, acts as a functioning
+knowledge based as described in the main paper.
+\end{itemize}
+\item testlogic.py
+
+\begin{itemize}
+\item My little test bed for the knowledge base. Reads several test cases
+from {}``tests.txt'' (the syntax of that text file is pretty intuitive),
+timing how long it takes to prove the desired result and ensuring
+the correctness of that result.
+\end{itemize}
+\end{itemize}
+I believe I presented the work done clearly in the real paper, however
+I will go over several bullet points here:
+\begin{itemize}
+\item Implementing the parsing system
+
+\begin{itemize}
+\item I initially tried to implement unnecessarily complex parsing algorithms,
+i.e. a recursive descent parser, the CYK algorithm, etc. I eventually
+realized that I can make a simple infix parser work with a few modifications.
+\item To do this I had to learn about regular expressions, parsing of languages,
+etc. Took me a while to do actually.
+\end{itemize}
+\item Logic simplification algorithms
+
+\begin{itemize}
+\item This was the brunt of my work, I believe. Even once I figured out
+how to conveniently express logical sentences in Python (my final
+solution was a single {}``Expression'' class, whose actual meaning
+varies based on its contents), it was quite a bit of work translating
+logical entailment theorems into code. 
+\item What complicated things is that everything has to be done recursively:
+e.g. once implications are eliminated at one level, you have to recursively
+call the function on each of the sub-expressions as well. 
+\item The most difficult rule to implement was the distribute\_or\_over\_and
+function. Handling a case such as $a\lor\left(b\land c\right)$ was
+very simple, however the complexity needed to increase by quite a
+bit to handle cases like $\left(a\land b\right)\lor\left(c\land d\right)$
+appropriately. The final result handles all cases well, no matter
+how large. $\left(a\land b\land c\land d\right)\lor\left(e\land f\land g\land h\right)\lor\left(i\land j\land k\land l\right)$
+is no match for my algorithm (the result is a beast containing 64
+clauses).
+\end{itemize}
+\item Resolution System
+
+\begin{itemize}
+\item This was a bit tricky to get to work correctly, though once everything
+was in CNF form from the logic simplification functions this wasn't
+terrible.
+\item Implementing the resolution algorithms did cause me to shift between
+representations before I settled on what was most convenient, though.
+Initially I tried representing clauses as their actual logical expressions,
+e.g. (a or b or c). After trying to work with that for a bit, I realized
+it was needless and cumbersome, and decided to convert them to sets
+before resolving, e.g. $\left\{ a,b,c\right\} $. 
+\end{itemize}
+\end{itemize}
+Nearly all of this project was completely new to me (parsers, regular
+expressions, logic programming of any sort, etc.), and I learned a
+lot in the process of creating this system. 
+\end{document}
