@@ -1,0 +1,1 @@
+Simple propositional logic theorem resolution based theorem prover, done for an AI class project
